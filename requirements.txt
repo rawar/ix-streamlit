@@ -4,3 +4,5 @@ seaborn
 stqdm
 lifetimes
 Pillow
+scikit-learn
+plotly
