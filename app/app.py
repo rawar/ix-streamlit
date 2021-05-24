@@ -21,7 +21,7 @@ def get_data(uploaded_file):
 def main():
     st.set_page_config(page_title="iX Customer Analyser", layout='wide')
 
-    logo = Image.open('../content/logo_ix_web.jpg')
+    logo = Image.open('logo_ix_web.jpg')
     st.sidebar.image(logo)
     st.sidebar.title("Customer Analyser")
     st.sidebar.markdown("""Diese Anwendung ermöglicht die interaktive Datenanalyse von [Online Retail](https://www.kaggle.com/vijayuv/onlineretail) Daten.
@@ -29,7 +29,7 @@ def main():
   """)
 
     # set app layout
-    col1, col2 = st.beta_columns([2, 1])
+    col1, col2, col3 = st.beta_columns([3, 1, 1])
 
     # initialize dataframe
     df = pd.DataFrame()
@@ -94,7 +94,7 @@ def main():
         else:
             status_slot.markdown("<font color='red'>Daten müssen zuerst geladen werden</font>", unsafe_allow_html=True)
 
-    col1.markdown("## 3. Top Produktkäume")
+    col1.markdown("## 3. Top Produktkäufe")
     if col1.checkbox("Top Produktkäufe"):
         if data_loaded:
             top = col1.number_input('Die Top-N Produktkäufe', min_value=1, max_value=100, value=10)
@@ -110,7 +110,7 @@ def main():
         else:
             status_slot.markdown("<font color='red'>Daten müssen zuerst geladen werden</font>", unsafe_allow_html=True)
 
-    col1.markdown("## 4. Top Länder nach Produktkäume")
+    col1.markdown("## 4. Top Länder nach Produktkäufe")
     if col1.checkbox("Top-10 Ländern nach Produktkäufen"):
         if data_loaded:
             product_country_hist = df.groupby("Country").sum().sort_values(by="Quantity", ascending=False).head(10)[
