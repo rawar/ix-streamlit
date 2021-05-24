@@ -11,22 +11,22 @@ This projects implements a simple Streamlit application for data exploration of 
 $ git clone https://github.com/rawar/ix-streamlit.git
 ```
 
-1. Upgrade your Python package installer pip
+2. Upgrade your Python package installer pip
 ```
 $ python3 -m pip install --upgrade pip
 ```
 
-1. Create a virtual environment
+3. Create a virtual environment
 ```
 $ cd ix-streamlit && python3 -m venv .venv
 ```
 
-1. Activate your virtual environment
+4. Activate your virtual environment
 ```
 $ source .venv/bin/activate
 ```
 
-1. Install all requirements
+5. Install all requirements
 ```
 pip install -r requirements.txt
 ```
