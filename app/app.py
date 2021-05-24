@@ -3,117 +3,209 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from stqdm import stqdm
+import lifetimes
+from PIL import Image
 
-# https://www.heise.de/ix/
 @st.cache(allow_output_mutation=True)
 def get_data(uploaded_file):
     df = pd.read_csv(uploaded_file, encoding='unicode_escape')
     return df
 
 def main():
-  st.set_page_config(page_title="iX Customer Lifetime Value Predictor", layout='wide')
-  st.sidebar.title("Beschreibung")
-  st.sidebar.markdown("Dies ist ein __Markdown__ Text")
+  st.set_page_config(page_title="iX Customer Analyser", layout='wide')
 
+  logo = Image.open('../content/logo_ix_web.jpg')
+  st.sidebar.image(logo)
+  st.sidebar.title("Customer Analyser")
+  st.sidebar.markdown("""Diese Anwendung ermöglicht die interaktive Datenanalyse von [Online Retail](https://www.kaggle.com/vijayuv/onlineretail) Daten.
+  Mit Hilfe der _Checkboxen_ lassen sich die einzelnen Analysen ein- und wieder ausschalten. Die Erzeugung von Graphen kann dabei etwas Zeit in Anspruch nehmen.
+  """)
+
+  # set app layout
   col1, col2 = st.beta_columns([2,1])
+
+  # initialize dataframe
   df = pd.DataFrame()
+  data_loaded = False
 
-  uploaded_file = st.sidebar.file_uploader("CSV-Datei laden", type=["csv"])
+  col1.markdown("# Datenexploration")
+  status_slot = col1.empty()
+  col1.markdown("""Für die geladenen Daten stehen folgende Analysen zur Verfügung:
+  """)
+
+  st.sidebar.markdown("""## Daten laden
+  Daten in Form einer CSV-Datei können entweder per _drag and drop_ hier abgelegt oder über die Schaltfläche _Browse files_ geladen werden.
+  """)
+  uploaded_file = st.sidebar.file_uploader("", type=["csv"])
   if uploaded_file is not None:
-    df = get_data(uploaded_file)
 
+    df = get_data(uploaded_file)
+    status_slot.text("Lade Daten...")
     # Data cleaning
     df.dropna(axis=0, subset=["CustomerID"], inplace=True)
+
     # Convert InvoiceDate
     df['InvoiceDate'] = pd.to_datetime(df['InvoiceDate'], format='%m/%d/%Y %H:%M')
+    df.loc[:, "Month"] = df.InvoiceDate.dt.month
+    df.loc[:, "Time"] = df.InvoiceDate.dt.time
+    df.loc[:, "Year"] = df.InvoiceDate.dt.year
+    df.loc[:, "Day"] = df.InvoiceDate.dt.day
+    df.loc[:, "Quarter"] = df.InvoiceDate.dt.quarter
+    df.loc[:, "Day of Week"] = df.InvoiceDate.dt.dayofweek
 
+    # calculate total amount
+    df["TotalAmount"] = df["Quantity"] * df["UnitPrice"]
 
+    data_loaded = True
+    status_slot.markdown("<font color='green'>Daten sind geladen</font>", unsafe_allow_html=True)
+
+  col1.markdown("## 1. Teile des Datensatzes in tabellenform Anzeigen")
   # display the dataset
   if col1.checkbox("Datensatz anzeigen"):
-    # only rows without NaN values
-    # the sample file is a little bit to big
-    col1.dataframe(df.sample(frac=0.15))
+    if data_loaded:
+      # only rows without NaN values
+      # the sample file is a little bit to big
+      countries = df["Country"].unique()
+      country = col1.selectbox("Land auswählen", options=countries, index=0)
+      col1.dataframe(df[df["Country"] == country].sample(frac=0.15))
+    else:
+      status_slot.markdown("<font color='red'>Daten müssen zuerst geladen werden</font>", unsafe_allow_html=True)
 
-
+  col1.markdown("## 2. Geigenplot nach Preis und Land")
   if col1.checkbox("Daten untersuchen"):
-    col1.write("### Violinplot nach Preis und Land")
-    countries = df["Country"].unique()
-    fig, ax = plt.subplots(10, 4, figsize=(18, 20))
-    axes_ = [axes_row for axes in ax for axes_row in axes]
-    sns.set(style="darkgrid")
+    if data_loaded:
+      countries = df["Country"].unique()
+      fig, ax = plt.subplots(10, 4, figsize=(18, 20))
+      axes_ = [axes_row for axes in ax for axes_row in axes]
 
-    with col1:
-      for i, c in enumerate(stqdm(countries, desc="Erzeuge Plots")):
-        sns.violinplot(x="UnitPrice", data=df[df["Country"] == c], ax=axes_[i], inner="point", palette="pastel")
-        axes_[i].set_title(f"Verteilung der Preise in {c}")
-        plt.tight_layout()
+      with col1:
+        for i, c in enumerate(stqdm(countries, desc="Erzeuge Plots")):
+          sns.violinplot(x="UnitPrice", data=df[df["Country"] == c], ax=axes_[i], inner="point", palette="pastel")
+          axes_[i].set_title(f"Verteilung der Preise in {c}")
+          plt.tight_layout()
+        col1.pyplot(fig)
+    else:
+      status_slot.markdown("<font color='red'>Daten müssen zuerst geladen werden</font>", unsafe_allow_html=True)
+
+  col1.markdown("## 3. Top Produktkäume")
+  if col1.checkbox("Top Produktkäufe"):
+    if data_loaded:
+      top = col1.number_input('Die Top-N Produktkäufe', min_value=1, max_value=100, value=10)
+
+      fig = plt.figure(figsize=(top, 5))
+      product_hist = df.groupby("Description").sum().sort_values(by="Quantity", ascending=False).head(top)["Quantity"]
+      product_hist = product_hist.reset_index()
+      sns.barplot(x='Quantity', y='Description', data=product_hist, label='Test', color='b', edgecolor='w', orient='h')
+      sns.set(style="darkgrid")
       col1.pyplot(fig)
+    else:
+      status_slot.markdown("<font color='red'>Daten müssen zuerst geladen werden</font>", unsafe_allow_html=True)
 
-  if col1.checkbox("Top-10 Produktkäufe"):
-    fig = plt.figure(figsize=(10, 8))
-    product_hist = df.groupby("Description").sum().sort_values(by="Quantity", ascending=False).head(10)["Quantity"]
-    product_hist = product_hist.reset_index()
-    col1.dataframe(product_hist)
-    #sns.barplot(x='Quantity', y='Description', data=product_hist, label='Test', color='b', edgecolor='w', orient='h')
-    #sns.set(style="darkgrid")
-    #col1.pyplot(fig)
-
+  col1.markdown("## 4. Top Länder nach Produktkäume")
   if col1.checkbox("Top-10 Ländern nach Produktkäufen"):
-    fig = plt.figure(figsize=(10, 8))
-    product_country_hist = df.groupby("Country").sum().sort_values(by="Quantity", ascending=False).head(10)["Quantity"]
-    product_country_hist = product_country_hist.reset_index()
-    col1.dataframe(product_country_hist)
-    #sns.barplot(x='Quantity', y='Description', data=product_hist, label='Test', color='b', edgecolor='w', orient='h')
-    #sns.set(style="darkgrid")
-    #col1.pyplot(fig)
+    if data_loaded:
+      product_country_hist = df.groupby("Country").sum().sort_values(by="Quantity", ascending=False).head(10)["Quantity"]
+      product_country_hist = product_country_hist.reset_index()
+      col1.dataframe(product_country_hist)
+    else:
+      status_slot.markdown("<font color='red'>Daten müssen zuerst geladen werden</font>", unsafe_allow_html=True)
 
-  if col1.checkbox("Zeitreihenanalyse"):
-    temp_data = df.copy()
-    temp_data.loc[:, "Month"] = df.InvoiceDate.dt.month
-    temp_data.loc[:, "Time"] = df.InvoiceDate.dt.time
-    temp_data.loc[:, "Year"] = df.InvoiceDate.dt.year
-    temp_data.loc[:, "Day"] = df.InvoiceDate.dt.day
-    temp_data.loc[:, "Quarter"] = df.InvoiceDate.dt.quarter
-    temp_data.loc[:, "Day of Week"] = df.InvoiceDate.dt.dayofweek
+  col1.markdown("## 5. Top-10 Produkte innerhalb der Länder mit den meisten Produktkäufen")
+  if col1.checkbox("Top-10 Produkte innerhalb der Top-10 Länder"):
+    if data_loaded:
+      product_country_hist = df.groupby(["Country", "Description"]).sum().sort_values(by="Quantity", ascending=False)["Quantity"]
+      product_country_hist = product_country_hist.reset_index()
+      fig, ax = plt.subplots(5, 2, figsize=(18, 20))
+      axes_ = [axes_row for axes in ax for axes_row in axes]
+      top_10_countries = product_country_hist["Country"].unique()[:10]
 
-    # Mapping day of week
-    dayofweek_mapping = dict(
-    {
-      0: "Montag",
-      1: "Dienstag",
-      2: "Mittwoch",
-      3: "Donnerstag",
-      4: "Freitag",
-      5: "Samstag",
-      6: "Sonntag"
-    })
+      with col1:
+        for i, c in enumerate(stqdm(top_10_countries, desc="Erzeuge Plots")):
+          top_10_products = product_country_hist[product_country_hist["Country"] == c].head(10)
+          sns.barplot(x='Quantity', y='Description', data=top_10_products, ax=axes_[i], label='Test', color='b', edgecolor='w', orient='h')
+          axes_[i].set_title(f"Meist verkaufte Produkte in {c}")
+          plt.tight_layout()
 
-    temp_data["Day of Week"] = temp_data["Day of Week"].map(dayofweek_mapping)
+        col1.pyplot(fig)
+    else:
+      status_slot.markdown("<font color='red'>Daten müssen zuerst geladen werden</font>", unsafe_allow_html=True)
 
-    sns.set(style="darkgrid")
-    fig = plt.figure(figsize=(16, 12))
-    plt.subplot(3, 2, 1)
-    sns.lineplot(x="Month", y="Quantity", data=temp_data.groupby("Month").sum("Quantity"), marker="o", color="lightseagreen")
+  col1.markdown("## 6. Käufe nach Zeiträumen analysieren")
+  if col1.checkbox("Analyse durchführen"):
+    if data_loaded:
 
-    plt.subplot(3, 2, 2)
-    temp_data.groupby("Year").sum()["Quantity"].plot(kind="bar")
-    plt.title("Läufe pro Jahr")
+      # Mapping day of week
+      dayofweek_mapping = dict(
+      {
+        0: "Montag",
+        1: "Dienstag",
+        2: "Mittwoch",
+        3: "Donnerstag",
+        4: "Freitag",
+        5: "Samstag",
+        6: "Sonntag"
+      })
 
-    plt.subplot(3, 2, 3)
-    temp_data.groupby("Quarter").sum()["Quantity"].plot(kind="bar", color="darkslategrey")
-    plt.title("Käufe pro Quartal")
+      df["Day of Week"] = df["Day of Week"].map(dayofweek_mapping)
 
-    plt.subplot(3, 2, 4)
-    sns.lineplot(x="Day", y="Quantity", data=temp_data.groupby("Day").sum("Quantity"), marker="o", )
-    plt.axvline(7, color='r', linestyle='--')
-    plt.axvline(15, color='k', linestyle="dotted")
-    plt.title("Käufe pro Tag")
 
-    plt.subplot(3, 2, 5)
-    temp_data.groupby("Day of Week").sum()["Quantity"].plot(kind="bar", color="darkorange")
-    plt.title("Käufe pro Wochentag")
-    plt.tight_layout()
-    col1.pyplot(fig)
+      fig = plt.figure(figsize=(16, 12))
+      plt.subplot(3, 2, 1)
+      sns.lineplot(x="Month", y="Quantity", data=df.groupby("Month").sum("Quantity"), marker="o")
+      plt.title("Käufe pro Monat")
+
+      plt.subplot(3, 2, 2)
+      df.groupby("Year").sum()["Quantity"].plot(kind="bar")
+      plt.title("Käufe pro Jahr")
+
+      plt.subplot(3, 2, 3)
+      df.groupby("Quarter").sum()["Quantity"].plot(kind="bar")
+      plt.title("Käufe pro Quartal")
+
+      plt.subplot(3, 2, 4)
+      sns.lineplot(x="Day", y="Quantity", data=df.groupby("Day").sum("Quantity"), marker="o", )
+      plt.title("Käufe pro Tag")
+
+      plt.subplot(3, 2, 5)
+      df.groupby("Day of Week").sum()["Quantity"].plot(kind="bar")
+      plt.title("Käufe pro Wochentag")
+      plt.tight_layout()
+      col1.pyplot(fig)
+    else:
+      status_slot.markdown("<font color='red'>Daten müssen zuerst geladen werden</font>", unsafe_allow_html=True)
+
+  col1.markdown("## 7. Kundengruppen analysieren")
+  if col1.checkbox("RFM Analyse"):
+    col1.markdown("""__RFM__ steht für __Recency__ (Aktualität), __Frequency__ und __Monetary__ Score derKunden
+                      Die RFM-Analyse kann helfen, die wichtigsten Kundengruppen und unwichtigsten Kundengruppen zu verstehen.
+*  __Recency__: Gibt die Kaufaktivität des  Kunden an.
+* __Frequency__: Gibt die Häufigkeit bzw. die Anzahö der Produktbestellungen an
+* __Monetary__: Gibt die Gesamtausgaben eines Kunden an
+                  """)
+
+    if data_loaded:
+      rfm_summary = lifetimes.utils.summary_data_from_transaction_data(df, "CustomerID", "InvoiceDate", "TotalAmount")
+      rfm_summary.reset_index(inplace=True)
+      fig = plt.figure(figsize=(14, 8))
+      plt.subplot(221)
+      sns.distplot(rfm_summary["frequency"])
+      plt.title("Frequency Distribution")
+
+      plt.subplot(222)
+      sns.distplot(rfm_summary["recency"])
+      plt.title("Recency Distribution")
+
+      plt.subplot(223)
+      sns.distplot(rfm_summary["T"])
+      plt.title("T Distribution")
+
+      plt.subplot(224)
+      sns.distplot(rfm_summary["monetary_value"])
+      plt.title("Monetary Value Distribution")
+      plt.tight_layout()
+      col1.pyplot(fig)
+    else:
+      status_slot.markdown("<font color='red'>Daten müssen zuerst geladen werden</font>", unsafe_allow_html=True)
 
 if __name__ == '__main__':
   main()

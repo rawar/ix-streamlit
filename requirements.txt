@@ -2,3 +2,5 @@ streamlit
 watchdog
 seaborn
 stqdm
+lifetimes
+Pillow
