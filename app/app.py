@@ -21,7 +21,7 @@ def get_data(uploaded_file):
 def main():
     st.set_page_config(page_title="iX Customer Analyser", layout='wide')
 
-    logo = Image.open('logo_ix_web.jpg')
+    logo = Image.open('app/logo_ix_web.jpg')
     st.sidebar.image(logo)
     st.sidebar.title("Customer Analyser")
     st.sidebar.markdown("""Diese Anwendung ermöglicht die interaktive Datenanalyse von [Online Retail](https://www.kaggle.com/vijayuv/onlineretail) Daten.
